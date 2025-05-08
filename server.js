@@ -44,7 +44,7 @@ const { auth } = require('./middleware/auth');
 app.use('/api/auth', authRoutes); // Mount auth routes first
 app.use('/api/users', userRoutes);
 app.use('/api/games', gameRoutes);
-app.use('/api/cart', auth, cartRoutes); // Use auth middleware directly
+app.use('/api/cart', cartRoutes); // Removed auth middleware
 
 // Error handling
 app.use((err, req, res, next) => {

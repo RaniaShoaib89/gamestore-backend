@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/database');
-const { auth } = require('../middleware/auth'); // Destructure auth from the exported object
+const auth = require('../middleware/auth');
 
 // Wrap auth middleware in error handling
 const authMiddleware = async (req, res, next) => {
     try {
-        auth(req, res, next);
+        await auth(req, res, next);
     } catch (error) {
         res.status(401).json({
             message: 'Authentication failed',
@@ -16,23 +16,36 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
-// Get user's cart
-router.get('/', authMiddleware, async (req, res) => {
-    try {
-        console.log('Fetching cart for user:', req.user.id);
-        
-        const [cart] = await pool.query(
-            'SELECT * FROM Cart WHERE user_ID = ?',
-            [req.user.id]
-        );
+// Get or create cart function to reuse across routes
+const getOrCreateCart = async (userId) => {
+    let [cart] = await pool.query(
+        'SELECT * FROM Cart WHERE user_ID = ?',
+        [userId]
+    );
 
-        if (cart.length === 0) {
-            return res.json({ 
-                items: [], 
-                total: 0,
+    if (cart.length === 0) {
+        const [result] = await pool.query(
+            'INSERT INTO Cart (user_ID) VALUES (?)',
+            [userId]
+        );
+        cart = [{ cart_ID: result.insertId }];
+    }
+    return cart[0];
+};
+
+// Get user's cart
+router.get('/', async (req, res) => {
+    try {
+        // Check if user is logged in via session
+        if (!req.session || !req.session.userId) {
+            return res.status(401).json({
+                message: 'Please login to view cart',
                 timestamp: '2025-05-05 18:43:36'
             });
         }
+
+        console.log('Fetching cart for user:', req.session.userId);
+        const cart = await getOrCreateCart(req.session.userId);
 
         const [items] = await pool.query(`
             SELECT 
@@ -42,12 +55,12 @@ router.get('/', authMiddleware, async (req, res) => {
             FROM Cart_Items ci
             JOIN Games g ON ci.game_ID = g.game_ID
             WHERE ci.cart_ID = ?
-        `, [cart[0].cart_ID]);
+        `, [cart.cart_ID]);
 
         const total = items.reduce((sum, item) => sum + parseFloat(item.total_price), 0);
 
         res.json({
-            cart_ID: cart[0].cart_ID,
+            cart_ID: cart.cart_ID,
             items: items,
             total: parseFloat(total).toFixed(2),
             timestamp: '2025-05-05 18:43:36'
@@ -148,21 +161,11 @@ router.put('/update/:gameId', authMiddleware, async (req, res) => {
             });
         }
 
-        const [cart] = await pool.query(
-            'SELECT * FROM Cart WHERE user_ID = ?',
-            [req.user.id]
-        );
-
-        if (cart.length === 0) {
-            return res.status(404).json({ 
-                message: 'Cart not found',
-                timestamp: '2025-05-05 18:43:36'
-            });
-        }
-
+        const cart = await getOrCreateCart(req.user.id);
+        
         const [result] = await pool.query(
             'UPDATE Cart_Items SET quantity = ? WHERE cart_ID = ? AND game_ID = ?',
-            [quantity, cart[0].cart_ID, gameId]
+            [quantity, cart.cart_ID, gameId]
         );
 
         if (result.affectedRows === 0) {
@@ -190,22 +193,11 @@ router.put('/update/:gameId', authMiddleware, async (req, res) => {
 router.delete('/remove/:gameId', authMiddleware, async (req, res) => {
     try {
         const { gameId } = req.params;
-
-        const [cart] = await pool.query(
-            'SELECT * FROM Cart WHERE user_ID = ?',
-            [req.user.id]
-        );
-
-        if (cart.length === 0) {
-            return res.status(404).json({ 
-                message: 'Cart not found',
-                timestamp: '2025-05-05 18:43:36'
-            });
-        }
+        const cart = await getOrCreateCart(req.user.id);
 
         const [result] = await pool.query(
             'DELETE FROM Cart_Items WHERE cart_ID = ? AND game_ID = ?',
-            [cart[0].cart_ID, gameId]
+            [cart.cart_ID, gameId]
         );
 
         if (result.affectedRows === 0) {
@@ -232,21 +224,11 @@ router.delete('/remove/:gameId', authMiddleware, async (req, res) => {
 // Clear entire cart
 router.delete('/clear', authMiddleware, async (req, res) => {
     try {
-        const [cart] = await pool.query(
-            'SELECT * FROM Cart WHERE user_ID = ?',
-            [req.user.id]
-        );
-
-        if (cart.length === 0) {
-            return res.status(404).json({ 
-                message: 'Cart not found',
-                timestamp: '2025-05-05 18:43:36'
-            });
-        }
+        const cart = await getOrCreateCart(req.user.id);
 
         await pool.query(
             'DELETE FROM Cart_Items WHERE cart_ID = ?',
-            [cart[0].cart_ID]
+            [cart.cart_ID]
         );
 
         res.json({ 
