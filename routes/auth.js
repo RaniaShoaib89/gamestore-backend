@@ -2,36 +2,68 @@ const express = require('express');
 const promisePool = require('../db/database');
 const router = express.Router();
 
+
+router.get('/check', (req, res) => {
+    if (req.session.user) {
+        res.json({ user: req.session.user });
+    } else {
+        res.status(401).json({ message: 'Not authenticated' });
+    }
+});
+
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        
-        const [rows] = await promisePool.query('SELECT * FROM user WHERE user_Name = ?', [username]); // Use 'user_Name' as the column name
+        const [rows] = await promisePool.query('SELECT * FROM user WHERE user_Name = ?', [username]);
 
         if (rows.length === 0 || password !== rows[0].password) {
-            return res.status(401).json({ message: 'Invalid credentials' });
+            return res.status(401).json({ 
+                message: 'Invalid credentials',
+                timestamp: new Date().toISOString()
+            });
         }
 
-        const user = rows[0]; // Get the first user from the result
-        // Set both session user object and userId
+        const user = rows[0];
+        
+        // Set session data
         req.session.user = {
             id: user.user_ID,
             username: user.user_Name,
             role: user.role
         };
-        req.session.userId = user.user_ID; // Add this line to set session userId
+        req.session.userId = user.user_ID;
+
+        // Return different response based on role
+        if (user.role === 'admin') {
+            return res.json({ 
+                user: {
+                    id: user.user_ID,
+                    username: user.user_Name,
+                    role: user.role
+                },
+                message: 'Admin login successful',
+                isAdmin: true,
+                timestamp: new Date().toISOString()
+            });
+        }
 
         return res.json({ 
             user: {
-                ...req.session.user,
-                user_ID: user.user_ID
+                id: user.user_ID,
+                username: user.user_Name,
+                role: user.role
             },
-            message: 'Login successful' 
+            message: 'Login successful',
+            isAdmin: false,
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
         console.error('Error during login:', error);
-        return res.status(500).json({ message: 'Internal server error' });
+        return res.status(500).json({ 
+            message: 'Internal server error',
+            timestamp: new Date().toISOString()
+        });
     }
 });
 

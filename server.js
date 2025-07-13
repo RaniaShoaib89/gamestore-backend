@@ -38,13 +38,17 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const gameRoutes = require('./routes/games');
 const cartRoutes = require('./routes/cart');
+const orderRoutes = require('./routes/orders');
+const adminRoutes = require('./routes/admin');
 const { auth } = require('./middleware/auth');
 
 // Mount routes
 app.use('/api/auth', authRoutes); // Mount auth routes first
 app.use('/api/users', userRoutes);
 app.use('/api/games', gameRoutes);
-app.use('/api/cart', cartRoutes); // Removed auth middleware
+app.use('/api/cart', cartRoutes); 
+app.use('/api/orders', orderRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {

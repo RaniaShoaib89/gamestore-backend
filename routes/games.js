@@ -7,7 +7,8 @@ const auth = require('../middleware/auth'); // Updated import
 router.get('/', async (req, res) => {
     try {
         const [games] = await pool.query(`
-            SELECT * FROM Games
+            SELECT game_ID, title, description, price, genre, platform, image_url 
+            FROM Games
         `);
         res.json(games);
     } catch (error) {
@@ -19,7 +20,8 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const [game] = await pool.query(`
-            SELECT * FROM Games 
+            SELECT game_ID, title, description, price, genre, platform, image_url
+            FROM Games 
             WHERE game_ID = ?
         `, [req.params.id]);
         
@@ -83,7 +85,7 @@ router.get('/genres/all', async (req, res) => {
 router.get('/details/:id', async (req, res) => {
     try {
         const [gameDetails] = await pool.query(`
-            SELECT game_ID, title, description, price, genre, platform
+            SELECT game_ID, title, description, price, genre, platform, image_url
             FROM Games
             WHERE game_ID = ?
         `, [req.params.id]);
